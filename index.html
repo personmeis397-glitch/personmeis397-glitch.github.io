@@ -216,6 +216,11 @@ body[data-theme="fire"] .status.warn,body[data-theme="fire"] .hot{color:#ff6b6b}
     <button class="cta" id="startBtn" type="button" style="margin-top:12px">Start NEET</button>
     <button class="ghost" id="restartBtn" type="button" style="margin-top:12px;display:none">Start again from now</button>
   </section>
+  <section class="panel" id="bkNag" hidden>
+    <h2>Back up your progress</h2>
+    <div class="fbody" id="bkNagTxt"></div>
+    <button class="cta" id="bkNagBtn" type="button" style="margin-top:12px">Back up now</button>
+  </section>
 
   <section class="panel hero" aria-live="off">
     <div class="big" id="hours">0</div>
@@ -274,6 +279,15 @@ body[data-theme="fire"] .status.warn,body[data-theme="fire"] .hot{color:#ff6b6b}
     <div class="label" id="cfgSum" style="text-align:left;margin-top:4px"></div>
     <h2 style="margin-top:18px">Watching speed</h2>
     <div class="themebtns" style="grid-template-columns:repeat(3,minmax(0,1fr))"><button type="button" id="spd1">1x</button><button type="button" id="spd125">1.25x</button><button type="button" id="spd15">1.5x</button></div>
+    <h2 style="margin-top:18px">Backup and safety</h2>
+    <div class="label" style="text-align:left;margin-bottom:8px" id="bkStatus"></div>
+    <button class="cta" id="bkFile" type="button">Save backup file</button>
+    <button class="ghost" id="bkCopy" type="button" style="margin-top:10px">Copy backup code</button>
+    <button class="ghost" id="bkLoad" type="button" style="margin-top:10px">Restore from file</button>
+    <input type="file" id="bkInput" accept=".json,.txt,application/json,text/plain" hidden>
+    <div class="label" style="text-align:left;margin:14px 0 6px">Or paste a backup code here</div>
+    <textarea id="bkText" rows="3" placeholder="NEET1:..." style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(var(--dk),.14);font-size:.9rem"></textarea>
+    <button class="ghost" id="bkPaste" type="button" style="margin-top:10px">Restore from code</button>
     <h2 style="margin-top:18px">Day history</h2>
     <div class="label" style="text-align:left;margin-bottom:8px">When you started each day and what you watched. Starting again never erases this.</div>
     <table><thead><tr><th>Day</th><th>Started</th><th>Watched</th></tr></thead><tbody id="dhBody"></tbody></table>
@@ -408,30 +422,42 @@ body[data-theme="fire"] .status.warn,body[data-theme="fire"] .hot{color:#ff6b6b}
     return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
   }
 
-  var state = { notes: null, sleepMs: 0, completed: 0, log: {}, focus: {}, plan: {}, settings: { wake: 540, bed: 1320 }, cfg: { total: 890, hours: 2 }, journey: { started: false }, dayStart: null };
-  try {
-    var saved = JSON.parse(localStorage.getItem(KEY));
-    if (saved && typeof saved.completed === "number") {
-      if (saved.cfg && saved.cfg.total >= 1 && saved.cfg.hours > 0) { state.cfg = saved.cfg; TOTAL_LECTURES = saved.cfg.total; HOURS_PER = saved.cfg.hours; }
-      state.completed = Math.min(TOTAL_LECTURES, Math.max(0, saved.completed));
-      state.log = saved.log || {};
-      state.focus = saved.focus || {};
-      state.plan = saved.plan || {};
-      if (saved.skip && typeof saved.skip.days === "number") { state.skip = saved.skip; if (!state.skip.v4) { state.skip.sp = 1; state.skip.v4 = true; } }
-      if (typeof saved.notes === "number") state.notes = saved.notes;
-      if (saved.sleepMs) state.sleepMs = saved.sleepMs;
-      if (saved.flow && saved.flow.day) state.flow = saved.flow;
-      if (saved.journey && saved.journey.started) state.journey = saved.journey;
-      if (saved.dayStart && saved.dayStart.day) state.dayStart = saved.dayStart;
-      if (Array.isArray(saved.doubts)) state.doubts = saved.doubts;
-      if (Array.isArray(saved.startLog)) state.startLog = saved.startLog;
-      if (saved.settings && typeof saved.settings.wake === "number" && typeof saved.settings.bed === "number") state.settings = saved.settings;
-    }
-  } catch(e) {}
+  function freshState(){ return { notes: null, sleepMs: 0, completed: 0, log: {}, focus: {}, plan: {}, settings: { wake: 540, bed: 1320 }, cfg: { total: 890, hours: 2 }, journey: { started: false }, dayStart: null }; }
+  var state = freshState();
+  function applyData(saved){
+    if (!saved || typeof saved.completed !== "number") return false;
+    state = freshState();
+    if (saved.cfg && saved.cfg.total >= 1 && saved.cfg.hours > 0) { state.cfg = saved.cfg; TOTAL_LECTURES = saved.cfg.total; HOURS_PER = saved.cfg.hours; }
+    state.completed = Math.min(TOTAL_LECTURES, Math.max(0, saved.completed));
+    state.log = saved.log || {};
+    state.focus = saved.focus || {};
+    state.plan = saved.plan || {};
+    if (saved.skip && typeof saved.skip.days === "number") { state.skip = saved.skip; if (!state.skip.v4) { state.skip.sp = 1; state.skip.v4 = true; } }
+    if (typeof saved.notes === "number") state.notes = saved.notes;
+    if (saved.sleepMs) state.sleepMs = saved.sleepMs;
+    if (saved.flow && saved.flow.day) state.flow = saved.flow;
+    if (saved.journey && saved.journey.started) state.journey = saved.journey;
+    if (saved.dayStart && saved.dayStart.day) state.dayStart = saved.dayStart;
+    if (Array.isArray(saved.doubts)) state.doubts = saved.doubts;
+    if (Array.isArray(saved.startLog)) state.startLog = saved.startLog;
+    if (typeof saved.lastBackup === "number") state.lastBackup = saved.lastBackup;
+    if (saved.settings && typeof saved.settings.wake === "number" && typeof saved.settings.bed === "number") state.settings = saved.settings;
+    if (state.notes === null) state.notes = (state.log[dayKey()] || 0);
+    return true;
+  }
+  try { applyData(JSON.parse(localStorage.getItem(KEY))); } catch(e) {}
 
   if (state.notes === null) state.notes = (state.log[dayKey()] || 0);   // first run: lectures already watched today still need notes
+  var idbTimer = null;
+  function idbOpen(cb){
+    try { var r = indexedDB.open("neet2027", 1); r.onupgradeneeded = function(){ r.result.createObjectStore("kv"); }; r.onsuccess = function(){ cb(r.result); }; r.onerror = function(){ cb(null); }; } catch(e) { cb(null); }
+  }
+  function idbPut(json){ idbOpen(function(db){ if (!db) return; try { db.transaction("kv", "readwrite").objectStore("kv").put(json, "state"); } catch(e) {} }); }
+  function idbGet(cb){ idbOpen(function(db){ if (!db) return cb(null); try { var q = db.transaction("kv").objectStore("kv").get("state"); q.onsuccess = function(){ cb(q.result || null); }; q.onerror = function(){ cb(null); }; } catch(e) { cb(null); } }); }
   function save(){
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {}
+    var j = JSON.stringify(state);
+    try { localStorage.setItem(KEY, j); } catch(e) {}
+    clearTimeout(idbTimer); idbTimer = setTimeout(function(){ idbPut(j); }, 300);
   }
   // A day starts only when you press Start NEET. It is saved, so reopening the app never resets it.
   function logStart(kind, min){
@@ -558,6 +584,7 @@ body[data-theme="fire"] .status.warn,body[data-theme="fire"] .hot{color:#ff6b6b}
       hr += "<tr><td>" + d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) + (k === dayKey() ? " (today)" : "") + "</td><td>" + state.log[k] + "</td><td>" + hm(state.log[k] * HOURS_PER) + "</td></tr>";
     });
     $("histBody").innerHTML = hr;
+    renderBackupInfo();
     var dm = {};
     (state.startLog || []).forEach(function(e){ (dm[e.day] = dm[e.day] || []).push(e); });
     Object.keys(state.log).forEach(function(k){ if (state.log[k] > 0 && !dm[k]) dm[k] = []; });
@@ -998,6 +1025,74 @@ body[data-theme="fire"] .status.warn,body[data-theme="fire"] .hot{color:#ff6b6b}
     renderFocus(false);
   }
 
+  var persisted = null;
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().then(function(r){ persisted = r; renderBackupInfo(); }); } catch(e) {}
+  function backupJson(){ return JSON.stringify({ app: "neet2027", v: 1, at: Date.now(), data: state }); }
+  function markBackedUp(){ state.lastBackup = Date.now(); save(); renderBackupInfo(); }
+  function b64enc(t){ return btoa(unescape(encodeURIComponent(t))); }
+  function b64dec(t){ return decodeURIComponent(escape(atob(t))); }
+  function parseBackup(txt){
+    txt = String(txt || "").trim(); if (!txt) throw new Error("empty");
+    if (txt.indexOf("NEET1:") === 0) txt = b64dec(txt.slice(6).replace(/\s+/g, ""));
+    var o = JSON.parse(txt), d = (o && o.data) ? o.data : o;
+    if (!d || typeof d.completed !== "number") throw new Error("bad");
+    return d;
+  }
+  function restoreFrom(d, quiet){
+    var lec = Math.min(890, d.completed || 0), days = Object.keys(d.log || {}).length;
+    if (!quiet && !confirm("Restore this backup? It has " + lec + " lectures done and " + days + " days of history. It replaces the data on this phone now.")) return false;
+    applyData(d); save(); renderTracker(); renderFocus(true); renderBackupInfo(); return true;
+  }
+  function backupName(){ return "neet-backup-" + dayKey() + ".json"; }
+  function saveBackupFile(){
+    var j = backupJson(), name = backupName();
+    try {
+      var f = new File([j], name, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [f] }) && navigator.share) {
+        navigator.share({ files: [f], title: "NEET backup" }).then(markBackedUp).catch(function(){});
+        return;
+      }
+    } catch(e) {}
+    try {
+      var u = URL.createObjectURL(new Blob([j], { type: "application/json" })), a = document.createElement("a");
+      a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(u); }, 4000); markBackedUp();
+      alert("Backup file saved to your Downloads. Keep a copy in Google Drive or send it to yourself on WhatsApp. If no file appeared, use Copy backup code instead.");
+    } catch(e) { alert("Could not save a file here. Use Copy backup code instead."); }
+  }
+  function copyBackupCode(){
+    var code = "NEET1:" + b64enc(backupJson());
+    function done(){ markBackedUp(); alert("Backup code copied. Paste it into WhatsApp (message yourself), Google Keep or Notes. To restore, paste it back in Settings."); }
+    function fallback(){
+      var t = document.createElement("textarea"); t.value = code; t.style.position = "fixed"; t.style.opacity = "0"; document.body.appendChild(t); t.select();
+      var ok = false; try { ok = document.execCommand("copy"); } catch(e) {} t.remove();
+      if (ok) done(); else { $("bkText").value = code; $("bkText").select(); alert("Could not copy automatically. The code is now in the box below. Select it and copy it by hand."); }
+    }
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, fallback); else fallback(); } catch(e) { fallback(); }
+  }
+  function renderBackupInfo(){
+    var lb = state.lastBackup, txt;
+    if (!lb) txt = "No backup yet. ";
+    else { var dd = Math.floor((Date.now() - lb) / 864e5); txt = "Last backup: " + (dd < 1 ? "today" : dd + (dd === 1 ? " day ago" : " days ago")) + ". "; }
+    txt += (persisted === true ? "Phone storage protection: on. " : "") + "A backup file or code is the only copy that survives clearing app data or a cleaner app.";
+    $("bkStatus").textContent = txt;
+    var need = state.journey && state.journey.started && (!lb || Date.now() - lb > 3 * 864e5);
+    $("bkNag").hidden = !need;
+    if (need) $("bkNagTxt").textContent = lb ? "Your last backup is " + Math.floor((Date.now() - lb) / 864e5) + " days old. Your streak and history live only on this phone." : "Your streak and history live only on this phone. A cleaner app or clearing data would erase them. Save a backup now.";
+  }
+  $("bkFile").addEventListener("click", saveBackupFile);
+  $("bkCopy").addEventListener("click", copyBackupCode);
+  $("bkNagBtn").addEventListener("click", saveBackupFile);
+  $("bkLoad").addEventListener("click", function(){ $("bkInput").click(); });
+  $("bkInput").addEventListener("change", function(e){
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function(){ try { restoreFrom(parseBackup(r.result)); } catch(x) { alert("That file is not a valid NEET backup."); } $("bkInput").value = ""; };
+    r.readAsText(f);
+  });
+  $("bkPaste").addEventListener("click", function(){
+    try { if (restoreFrom(parseBackup($("bkText").value))) $("bkText").value = ""; } catch(x) { alert("That is not a valid backup code. Paste the whole code starting with NEET1:"); }
+  });
   function esc(t){ return String(t).replace(/[&<>"]/g, function(c){ return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function keyOf(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
   function streakDays(){
@@ -1030,6 +1125,19 @@ body[data-theme="fire"] .status.warn,body[data-theme="fire"] .hot{color:#ff6b6b}
     var d = (state.doubts || [])[+b.getAttribute("data-db")]; if (!d) return;
     d.ok = true; d.okDay = dayKey(); save(); renderDoubts(); renderFocus(true);
   });
+  (function recover(){
+    var empty = !state.journey.started && !state.completed && !Object.keys(state.log).length;
+    if (!empty) return;
+    idbGet(function(j){
+      if (!j) return;
+      try {
+        var d = JSON.parse(j);
+        if (d && ((d.completed || 0) > 0 || (d.journey && d.journey.started) || Object.keys(d.log || {}).length)) {
+          if (confirm("Your earlier progress was found on this phone (" + Math.min(890, d.completed || 0) + " lectures done). Restore it?")) restoreFrom(d, true);
+        }
+      } catch(e) {}
+    });
+  })();
   $("fClose").addEventListener("click", function(){ showView("home"); });
   function showView(name){
     $("home").hidden = name !== "home";
