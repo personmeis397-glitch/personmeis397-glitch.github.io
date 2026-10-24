@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.personmeis397_glitch.twa",
+        "sha256_cert_fingerprints": ["78:A3:2B:78:B0:32:47:84:76:B1:33:89:31:63:57:C6:FF:D3:D3:76:A0:22:CA:E0:C5:EA:12:13:1B:4F:82:55"]
+      }
+    }]
